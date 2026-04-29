@@ -13,11 +13,11 @@ public class NewBodyTracker : MonoBehaviour
     public Animator animator;
 
     [Header("Mirror Mode")]
-    public bool mirror = true; // 前置摄像头开启镜像
-    public bool flipY = false;
+    public bool mirror = false; // 前置摄像头开启镜像
+    public bool flipY = true;
 
     [Header("Body Positioning")]
-    public float heightOffset = 0.0f;             // 如果需要微调脚底高度
+    public float heightOffset = -1f;             // 如果需要微调脚底高度
     public float forwardOffset = 0.0f;             // 模型相对于臀部中心的前后偏移（一般不需要）
     public float positionSmoothness = 15f;
     public float rotationSmoothness = 15f;
@@ -100,7 +100,14 @@ public class NewBodyTracker : MonoBehaviour
 
         // 1. 动态调整身体缩放
         if (autoScale)
+        {
             UpdateAutoScale(landmarks);
+        }
+        else
+        {
+            targetScale = bodyScale;
+            transform.localScale = Vector3.Lerp(transform.localScale, Vector3.one * targetScale, Time.deltaTime * scaleSmoothness);
+        }
 
         // 2. 设置模型位置（臀部中心）
         Vector3 hipWorldPos = CalculateHipsWorldPosition(landmarks);
@@ -211,7 +218,8 @@ public class NewBodyTracker : MonoBehaviour
     {
         float viewportX = mirror ? 1f - lm.x : lm.x;      // 注意：如果已经镜像过，这里就不用再翻转
         float viewportY = flipY ? 1f - lm.y : lm.y;
-        float depth = lm.z * depthMultiplier + depthOffset;   // 你可以根据实际深度范围调整
+        //float depth = lm.z * depthMultiplier + depthOffset;   // 你可以根据实际深度范围调整
+        float depth = depthOffset;
         Vector3 viewportPoint = new Vector3(viewportX, viewportY, depth);
         return Camera.main.ViewportToWorldPoint(viewportPoint);
     }
