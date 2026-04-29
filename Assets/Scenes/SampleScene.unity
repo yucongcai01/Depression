@@ -480,6 +480,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Main Canvas
       objectReference: {fileID: 0}
+    - target: {fileID: 8571076842338426121, guid: 140d1d2c406167c50819d89f86d9092e, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8571076842338426122, guid: 140d1d2c406167c50819d89f86d9092e, type: 3}
       propertyPath: m_Camera
       value: 
@@ -955,17 +959,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NewBodyTracker
   poseLandmarkerRunner: {fileID: 1674940744}
   animator: {fileID: 1472905313}
-  mirror: 1
-  flipY: 0
-  heightOffset: 0
+  mirror: 0
+  flipY: 1
+  heightOffset: -1
   forwardOffset: 0
   positionSmoothness: 15
   rotationSmoothness: 15
-  autoScale: 0
+  autoScale: 1
   scaleSmoothness: 5
-  bodyScale: 5
-  depthMultiplier: -10
-  depthOffset: 0
+  bodyScale: 10
+  depthMultiplier: -15
+  depthOffset: 5
   rotationMappings: []
 --- !u!1 &1674940742
 GameObject:

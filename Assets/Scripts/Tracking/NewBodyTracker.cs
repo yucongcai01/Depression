@@ -26,6 +26,13 @@ public class NewBodyTracker : MonoBehaviour
     [Range(0.1f, 20f)]
     public float bodyScale = 5f;                   // 手动缩放系数（autoScale关闭时使用）
 
+    [Header("Virtual Scene Placement")]
+    
+    public bool enablePositionTracking = false; // 是否启用位置跟踪
+    public Vector3 avatarInitialPosition = Vector3.zero; // 模型初始位置（如果不启用位置跟踪，模型将保持在此位置）
+    public Vector3 avatarInitialRotation = new Vector3(0, 180, 0); // 模型初始旋转（如果不启用位置跟踪，模型将保持在此旋转）
+
+
     // 在 [Header("Body Positioning")] 下面添加
     public float depthMultiplier = -10f;   // 可在 Inspector 调
     public float depthOffset = 5f;         // 可在 Inspector 调
@@ -109,14 +116,27 @@ public class NewBodyTracker : MonoBehaviour
             transform.localScale = Vector3.Lerp(transform.localScale, Vector3.one * targetScale, Time.deltaTime * scaleSmoothness);
         }
 
-        // 2. 设置模型位置（臀部中心）
-        Vector3 hipWorldPos = CalculateHipsWorldPosition(landmarks);
-        hipWorldPos.y += heightOffset;
-        hipWorldPos += transform.forward * forwardOffset;
-        transform.position = Vector3.Lerp(transform.position, hipWorldPos, Time.deltaTime * positionSmoothness);
+        if (enablePositionTracking)
+        {
+            // 2. 设置模型位置（臀部中心）
+            Vector3 hipWorldPos = CalculateHipsWorldPosition(landmarks);
+            hipWorldPos.y += heightOffset;
+            hipWorldPos += transform.forward * forwardOffset;
+            transform.position = Vector3.Lerp(transform.position, hipWorldPos, Time.deltaTime * positionSmoothness);
+        }
+        else
+        {
+            // 保持模型在初始位置（只跟踪旋转）
+            transform.position = avatarInitialPosition;
+            Quaternion initialRot = Quaternion.Euler(avatarInitialRotation);
+            transform.rotation = Quaternion.Slerp(transform.rotation, initialRot, Time.deltaTime * rotationSmoothness);
+        }
 
         // 3. 设置模型朝向（始终面对摄像头/用户）
-        UpdateModelFacing();
+        if (enablePositionTracking)
+        {
+            UpdateModelFacing();
+        }
 
         // 4. 应用骨骼旋转
         foreach (var mapping in rotationMappings)
