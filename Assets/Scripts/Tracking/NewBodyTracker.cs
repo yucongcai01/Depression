@@ -5,6 +5,7 @@ using Mediapipe.Tasks.Vision.PoseLandmarker;
 using Quaternion = UnityEngine.Quaternion;
 using Vector3 = UnityEngine.Vector3;
 using MPNormalizedLandmark = Mediapipe.Tasks.Components.Containers.NormalizedLandmark;
+using System.ComponentModel;
 
 public class NewBodyTracker : MonoBehaviour
 {
@@ -29,6 +30,7 @@ public class NewBodyTracker : MonoBehaviour
     [Header("Virtual Scene Placement")]
     
     public bool enablePositionTracking = false; // 是否启用位置跟踪
+    public bool faceCamera = false; // 是否让模型始终面向摄像头（仅在启用位置跟踪时有效）
     public Vector3 avatarInitialPosition = Vector3.zero; // 模型初始位置（如果不启用位置跟踪，模型将保持在此位置）
     public Vector3 avatarInitialRotation = new Vector3(0, 180, 0); // 模型初始旋转（如果不启用位置跟踪，模型将保持在此旋转）
 
@@ -43,6 +45,12 @@ public class NewBodyTracker : MonoBehaviour
         public HumanBodyBones bone;
         public int parentLandmarkIndex;
         public int childLandmarkIndex;
+
+        public bool useParentMidpoint; // 是否使用父骨骼和子骨骼的中点作为方向
+        public bool useChildMidpoint;  // 是否使用子骨骼和父骨骼的中点作为方向
+        public int parentMidpointA, parentMidpointB;
+        public int childMidpointA, childMidpointB;
+
         public Vector3 axisOffset;
     }
 
@@ -159,7 +167,7 @@ public class NewBodyTracker : MonoBehaviour
         targetScale = Mathf.Lerp(targetScale, desiredScale, Time.deltaTime * scaleSmoothness);
         transform.localScale = Vector3.one * targetScale;
     }
-
+    /*
     // 让模型的正面始终朝向用户（即朝向摄像头）
     void UpdateModelFacing()
     {
@@ -168,6 +176,30 @@ public class NewBodyTracker : MonoBehaviour
         dirToCamera.y = 0; // 保持直立
         Quaternion targetRotation = Quaternion.LookRotation(dirToCamera);
         transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSmoothness);
+    }
+    */
+    void UpdateModelFacing()
+    {
+        if (faceCamera)
+        {
+            Vector3 dirToCamera = Camera.main.transform.position - transform.position;
+            dirToCamera.y = 0;
+            Quaternion targetRotation = Quaternion.LookRotation(dirToCamera);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSmoothness);
+        }
+        else
+        {
+            // 用肩膀向量计算身体朝向
+            Vector3 leftShoulder = GetWorldPointFromLandmark(currentLandmarks[11]);
+            Vector3 rightShoulder = GetWorldPointFromLandmark(currentLandmarks[12]);
+            Vector3 shoulderDir = (rightShoulder - leftShoulder).normalized;
+            Vector3 bodyForward = Vector3.Cross(shoulderDir, Vector3.up); // 假设 Y 是上方
+            if (bodyForward != Vector3.zero)
+            {
+                Quaternion targetRot = Quaternion.LookRotation(bodyForward, Vector3.up);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * rotationSmoothness);
+            }
+        }
     }
 
     // 记录 T-Pose 下的骨骼局部前向和旋转
@@ -194,7 +226,7 @@ public class NewBodyTracker : MonoBehaviour
             boneInitLocalRot[map.bone] = bone.localRotation;
         }
     }
-
+    /*
     // 改进的骨骼旋转（基于初始姿态的差值）
     // 替换原来的 ApplyBoneRotationImproved（逻辑不变，只是空间现在一致了）
     void ApplyBoneRotationImproved(RotationMapping mapping, List<MPNormalizedLandmark> landmarks)
@@ -232,6 +264,7 @@ public class NewBodyTracker : MonoBehaviour
 
         bone.localRotation = Quaternion.Slerp(bone.localRotation, targetLocalRot, Time.deltaTime * rotationSmoothness);
     }
+    */
 
     // 世界坐标转换（从归一化地标）
     Vector3 GetWorldPointFromLandmark(MPNormalizedLandmark lm)
@@ -274,7 +307,33 @@ public class NewBodyTracker : MonoBehaviour
         AddRotationMapping(HumanBodyBones.RightUpperLeg, 24, 26);
         AddRotationMapping(HumanBodyBones.LeftLowerLeg, 25, 27);
         AddRotationMapping(HumanBodyBones.RightLowerLeg, 26, 28);
-        // 可以添加更多：脊柱、头等，但暂时只处理四肢
+        // 可以添加更多：脊柱、头等
+        // ---- 躯干与头部 ----
+        // 骨盆：髋中点 -> 肩中点 (控制整个身体方向)
+        AddMidpointMapping(HumanBodyBones.Hips,
+            parentA: 23, parentB: 24,          // 髋中心
+            childA: 11, childB: 12);           // 肩中心
+
+        // 脊柱：髋中点 -> 肩中点 (跟上一条类似，但 Humanoid 层级不同可分别控制)
+        AddMidpointMapping(HumanBodyBones.Spine,
+            parentA: 23, parentB: 24,
+            childA: 11, childB: 12);
+
+        // 胸部：肩中点 -> 鼻子 (上躯干前倾/后仰)
+        AddMidpointMapping(HumanBodyBones.Chest,
+            parentA: 11, parentB: 12,          // 肩中心
+            childA: 0, childB: 0,              // 鼻子当单个点
+            childIsMidpoint: false);           // 新增一个重载
+
+        // 颈部：鼻子 -> 两耳中点
+        AddMidpointMapping(HumanBodyBones.Neck,
+            parentA: 0, parentB: 0, parentIsMidpoint: false,
+            childA: 7, childB: 8);
+
+        // 头部：两耳中点 -> 头顶(用鼻子代替，方向近似)
+        AddMidpointMapping(HumanBodyBones.Head,
+            parentA: 7, parentB: 8,
+            childA: 0, childB: 0, childIsMidpoint: false);
     }
 
     void AddRotationMapping(HumanBodyBones bone, int parentIdx, int childIdx)
@@ -290,5 +349,98 @@ public class NewBodyTracker : MonoBehaviour
         Transform t = animator.GetBoneTransform(bone);
         if (t != null && !boneIndexMap.ContainsKey(bone))
             boneIndexMap[bone] = t;
+    }
+
+    void AddMidpointMapping(HumanBodyBones bone,
+        int parentA, int parentB, int childA, int childB,
+        bool parentIsMidpoint = true, bool childIsMidpoint = true)
+    {
+        var map = new RotationMapping {
+            bone = bone,
+            axisOffset = Vector3.zero
+        };
+
+        if (parentIsMidpoint)
+        {
+            map.useParentMidpoint = true;
+            map.parentMidpointA = parentA;
+            map.parentMidpointB = parentB;
+        }
+        else
+        {
+            map.parentLandmarkIndex = parentA;
+        }
+
+        if (childIsMidpoint)
+        {
+            map.useChildMidpoint = true;
+            map.childMidpointA = childA;
+            map.childMidpointB = childB;
+        }
+        else
+        {
+            map.childLandmarkIndex = childA;
+        }
+
+        rotationMappings.Add(map);
+        Transform t = animator.GetBoneTransform(bone);
+        if (t != null && !boneIndexMap.ContainsKey(bone))
+            boneIndexMap[bone] = t;
+    }
+
+    void ApplyBoneRotationImproved(RotationMapping mapping, List<MPNormalizedLandmark> landmarks)
+    {
+        if (!boneIndexMap.TryGetValue(mapping.bone, out Transform bone))
+            return;
+
+        // 获取父点世界坐标
+        Vector3 parentPos;
+        if (mapping.useParentMidpoint)
+        {
+            parentPos = (GetWorldPointFromLandmark(landmarks[mapping.parentMidpointA]) +
+                        GetWorldPointFromLandmark(landmarks[mapping.parentMidpointB])) * 0.5f;
+        }
+        else
+        {
+            if (mapping.parentLandmarkIndex >= landmarks.Count) return;
+            parentPos = GetWorldPointFromLandmark(landmarks[mapping.parentLandmarkIndex]);
+        }
+
+        // 获取子点世界坐标
+        Vector3 childPos;
+        if (mapping.useChildMidpoint)
+        {
+            childPos = (GetWorldPointFromLandmark(landmarks[mapping.childMidpointA]) +
+                        GetWorldPointFromLandmark(landmarks[mapping.childMidpointB])) * 0.5f;
+        }
+        else
+        {
+            if (mapping.childLandmarkIndex >= landmarks.Count) return;
+            childPos = GetWorldPointFromLandmark(landmarks[mapping.childLandmarkIndex]);
+        }
+
+        Vector3 direction = (childPos - parentPos).normalized;
+        if (direction == Vector3.zero) return;
+
+        Transform boneParent = bone.parent;
+        Vector3 localDir = boneParent != null
+            ? boneParent.InverseTransformDirection(direction)
+            : direction;
+
+        Vector3 initForward = boneInitLocalForward.ContainsKey(mapping.bone)
+            ? boneInitLocalForward[mapping.bone]
+            : Vector3.forward;
+
+        Quaternion fromRot = Quaternion.FromToRotation(initForward, localDir);
+        Quaternion initRot = boneInitLocalRot.ContainsKey(mapping.bone)
+            ? boneInitLocalRot[mapping.bone]
+            : bone.localRotation;
+
+        Quaternion targetLocalRot = fromRot * initRot;
+
+        if (mapping.axisOffset != Vector3.zero)
+            targetLocalRot *= Quaternion.Euler(mapping.axisOffset);
+
+        bone.localRotation = Quaternion.Slerp(bone.localRotation, targetLocalRot, Time.deltaTime * rotationSmoothness);
     }
 }
