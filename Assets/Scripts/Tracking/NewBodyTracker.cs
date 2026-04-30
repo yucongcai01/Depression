@@ -34,7 +34,7 @@ public class NewBodyTracker : MonoBehaviour
 
 
     // 在 [Header("Body Positioning")] 下面添加
-    public float depthMultiplier = -10f;   // 可在 Inspector 调
+    public float depthMultiplier = 1f;   // 可在 Inspector 调
     public float depthOffset = 5f;         // 可在 Inspector 调
 
     [System.Serializable]
@@ -238,8 +238,8 @@ public class NewBodyTracker : MonoBehaviour
     {
         float viewportX = mirror ? 1f - lm.x : lm.x;      // 注意：如果已经镜像过，这里就不用再翻转
         float viewportY = flipY ? 1f - lm.y : lm.y;
-        //float depth = lm.z * depthMultiplier + depthOffset;   // 你可以根据实际深度范围调整
-        float depth = depthOffset;
+        float depth = lm.z * depthMultiplier + depthOffset;   // 你可以根据实际深度范围调整
+        //float depth = depthOffset;
         Vector3 viewportPoint = new Vector3(viewportX, viewportY, depth);
         return Camera.main.ViewportToWorldPoint(viewportPoint);
     }

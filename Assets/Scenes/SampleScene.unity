@@ -978,7 +978,7 @@ PrefabInstance:
     - target: {fileID: 7869543608362826461, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
       propertyPath: m_Controller
       value: 
-      objectReference: {fileID: 9100000, guid: 3bbec3d409b2ef74ca2bfeaecac62b1f, type: 2}
+      objectReference: {fileID: 0}
     - target: {fileID: 7869543608362826461, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
@@ -1011,7 +1011,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1874133629}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6de4fd43a0a9aa143877b0c317360339, type: 3}
   m_Name: 
@@ -1030,7 +1030,7 @@ MonoBehaviour:
   enablePositionTracking: 0
   avatarInitialPosition: {x: 0, y: 0, z: 0}
   avatarInitialRotation: {x: 0, y: 180, z: 0}
-  depthMultiplier: -15
+  depthMultiplier: 1
   depthOffset: 5
   rotationMappings: []
 --- !u!114 &1874133633
@@ -1040,7 +1040,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1874133629}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8f709bac5b4dac84498ce47a985d6208, type: 3}
   m_Name: 
@@ -1085,7 +1085,7 @@ MonoBehaviour:
   minHandVisualZ: -0.3
   maxHandVisualZ: 1.2
   legsEnabled: 1
-  legIKWeight: 1
+  legIKWeight: 0.8
   kneeHintWeight: 0.9
   legTargetSmoothness: 14
   legReachMultiplier: 1.05
@@ -1093,6 +1093,7 @@ MonoBehaviour:
   kneeHintForward: 0.45
   kneeHintDown: 0.45
   kneeLandmarkBlend: 0.3
+  kneeHintDynamicWeight: 0.7
   useFootIndexForFootTarget: 0
   footTargetYOffset: 0
   drawDebugTargets: 1
