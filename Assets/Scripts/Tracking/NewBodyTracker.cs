@@ -28,7 +28,6 @@ public class NewBodyTracker : MonoBehaviour
     public float bodyScale = 5f;                   // 手动缩放系数（autoScale关闭时使用）
 
     [Header("Virtual Scene Placement")]
-    
     public bool enablePositionTracking = false; // 是否启用位置跟踪
     public bool faceCamera = false; // 是否让模型始终面向摄像头（仅在启用位置跟踪时有效）
     public Vector3 avatarInitialPosition = Vector3.zero; // 模型初始位置（如果不启用位置跟踪，模型将保持在此位置）
@@ -64,6 +63,8 @@ public class NewBodyTracker : MonoBehaviour
     private float targetScale = 1f;
     private float referenceShoulderWidth = 0.35f;  // 模型 T-Pose 时的肩膀宽度（世界单位）
     private Vector3 initialHipsOffset;             // 用于位置平滑
+
+    public List<MPNormalizedLandmark> currentLandmarksExternal { get; private set; } // 公开只读属性，外部可以访问当前地标数据
 
     void Start()
     {
@@ -109,6 +110,7 @@ public class NewBodyTracker : MonoBehaviour
         var landmarks = GetLandmarksSnapshot();
         if (landmarks == null) return;
         currentLandmarks = landmarks;
+        currentLandmarksExternal = landmarks;
 
         // 如果开启镜像，左右交换关键点（数据源交换，之后映射索引保持不变）
 
@@ -267,7 +269,7 @@ public class NewBodyTracker : MonoBehaviour
     */
 
     // 世界坐标转换（从归一化地标）
-    Vector3 GetWorldPointFromLandmark(MPNormalizedLandmark lm)
+    public Vector3 GetWorldPointFromLandmark(MPNormalizedLandmark lm)
     {
         float viewportX = mirror ? 1f - lm.x : lm.x;      // 注意：如果已经镜像过，这里就不用再翻转
         float viewportY = flipY ? 1f - lm.y : lm.y;

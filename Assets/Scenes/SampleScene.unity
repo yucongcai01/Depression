@@ -993,6 +993,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3503167532966410781, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1874133633}
+    - targetCorrespondingSourceObject: {fileID: 3503167532966410781, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1874133634}
   m_SourcePrefab: {fileID: 100100000, guid: 9bd72731ebe2248478ba4849c274a43b, type: 3}
 --- !u!1 &1874133629 stripped
 GameObject:
@@ -1022,12 +1025,13 @@ MonoBehaviour:
   flipY: 1
   heightOffset: 0
   forwardOffset: 0
-  positionSmoothness: 15
-  rotationSmoothness: 15
+  positionSmoothness: 12
+  rotationSmoothness: 12
   autoScale: 0
   scaleSmoothness: 5
   bodyScale: 3
   enablePositionTracking: 0
+  faceCamera: 0
   avatarInitialPosition: {x: 0, y: 0, z: 0}
   avatarInitialRotation: {x: 0, y: 180, z: 0}
   depthMultiplier: 1
@@ -1098,6 +1102,26 @@ MonoBehaviour:
   footTargetYOffset: 0
   drawDebugTargets: 1
   recalibrateKey: 99
+--- !u!114 &1874133634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1874133629}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d5d57ead4e91364392aff7e4232330a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MotionRecorder
+  bodyTracker: {fileID: 1874133631}
+  trackedIndices: 0f000000100000000b0000000c000000170000001800000007000000080000000d0000000e000000
+  velocitySmoothness: 10
+  dataHistoryTime: 2
+  averageSpeed: 0
+  maxSpeed: 0
+  totalMovement: 0
+  motionIntensity: 0
 --- !u!1001 &2108967850
 PrefabInstance:
   m_ObjectHideFlags: 0
