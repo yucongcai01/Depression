@@ -116,7 +116,7 @@ namespace Mediapipe.Tasks.Components.Containers
     public readonly float? presence;
     public readonly string name;
 
-    internal NormalizedLandmark(float x, float y, float z, float? visibility, float? presence) : this(x, y, z, visibility, presence, null)
+    public NormalizedLandmark(float x, float y, float z, float? visibility, float? presence) : this(x, y, z, visibility, presence, null)
     {
     }
 
