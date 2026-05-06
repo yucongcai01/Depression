@@ -50,7 +50,7 @@ public class MotionRecorder : MonoBehaviour
     void Start()
     {
         if (bodyTracker == null)
-            bodyTracker = FindObjectOfType<NewBodyTracker>();
+            bodyTracker = FindFirstObjectByType<NewBodyTracker>();
     }
 
     // Update is called once per frame

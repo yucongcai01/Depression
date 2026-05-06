@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Mediapipe.Unity.Sample.PoseLandmarkDetection;
 using Unity.VisualScripting;
+using MPNormalizedLandmark = Mediapipe.Tasks.Components.Containers.NormalizedLandmark;
 
 public class DanceRecorder : MonoBehaviour
 {
@@ -20,12 +21,16 @@ public class DanceRecorder : MonoBehaviour
     private float recordingStartTime;
     public bool IsRecording => isRecording;
     public float CurrentRecordingTime => isRecording ? Time.time - recordingStartTime : 0f;
+
+    public int clipCount = 0; // 已保存的片段数量，用于生成默认文件名
+
+    private float recordedDuration = 0f;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         if (bodyTracker == null)
         {
-            bodyTracker = FindObjectOfType<NewBodyTracker>();
+            bodyTracker = FindAnyObjectByType<NewBodyTracker>();
             if (bodyTracker == null)
             {
                 Debug.LogError("DanceRecorder: No NewBodyTracker found.");
@@ -33,7 +38,11 @@ public class DanceRecorder : MonoBehaviour
             }
         }
 
-        CollectTrackedIndices();
+        // 检查已保存的片段数量，避免覆盖
+#if UNITY_EDITOR
+        string[] existingClips = UnityEditor.AssetDatabase.FindAssets("t:DanceClipData", new[] { "Assets/Resources/DanceClips" });
+        clipCount = existingClips.Length;
+#endif
     }
 
     // Update is called once per frame
@@ -42,9 +51,22 @@ public class DanceRecorder : MonoBehaviour
         if (!isRecording) return;
 
         // 取得当前帧的 landmarks 快照
-        List<Mediapipe.Tasks.Components.Containers.NormalizedLandmark> landmarks = bodyTracker.currentLandmarksExternal;
-        if (landmarks == null || landmarks.Count < 33)
+        List<MPNormalizedLandmark> landmarks = bodyTracker.currentLandmarksExternal;
+        if (landmarks == null)
+        {
+            Debug.LogWarning("DanceRecorder: No landmarks detected in current frame.");
             return;
+        }
+
+        foreach (int idx in recordIndices)
+        {
+            if (idx < 0 || idx >= landmarks.Count)
+            {
+                Debug.LogWarning($"DanceRecorder: Landmark index {idx} is out of bounds.");
+                continue;
+            }
+        }
+
 
         FrameData frame = new FrameData();
         frame.time = Time.time - recordingStartTime;
@@ -53,12 +75,27 @@ public class DanceRecorder : MonoBehaviour
         for (int i = 0; i < recordIndices.Count; i++)
         {
             int idx = recordIndices[i];
+            if (idx < 0 || idx >= landmarks.Count)
+            {
+                frame.landmarkPositions[i] = Vector3.zero;
+                continue;
+            }
+
             var lm = landmarks[idx];
-            // 存储原始归一化坐标（未做镜像处理，由回放时的 GetWorldPointFromLandmark 统一应用）
-            frame.landmarkPositions[i] = new Vector3(lm.x, lm.y, lm.z);
+            // Store the viewport/depth values that match NewBodyTracker's bone-driving space.
+            frame.landmarkPositions[i] = GetRecordedLandmarkPosition(lm);
         }
 
         recordedFrames.Add(frame);
+    }
+
+    private Vector3 GetRecordedLandmarkPosition(MPNormalizedLandmark lm)
+    {
+        // Keep recorded clips in the same viewport/depth space NewBodyTracker uses to drive bones.
+        float viewportX = bodyTracker.mirror ? 1f - lm.x : lm.x;
+        float viewportY = bodyTracker.flipY ? 1f - lm.y : lm.y;
+        float depth = lm.z * bodyTracker.depthMultiplier + bodyTracker.depthOffset;
+        return new Vector3(viewportX, viewportY, depth);
     }
 
     public void CollectTrackedIndices()
@@ -92,6 +129,7 @@ public class DanceRecorder : MonoBehaviour
 
         recordIndices = indices.OrderBy(i => i).ToList();
         manualRecordIndices = recordIndices.ToArray(); // 同步到 Inspector
+        Debug.Log($"DanceRecorder: Collected {recordIndices.Count} unique landmark indices for recording.");
     }
 
     public void StartRecording()
@@ -99,36 +137,60 @@ public class DanceRecorder : MonoBehaviour
         if (isRecording) return;
         if (recordIndices.Count == 0)
         {
-            Debug.LogWarning("DanceRecorder: no tracked landmark indices found.");
+            CollectTrackedIndices();
+        }
+
+        if (recordIndices.Count == 0)
+        {
+            Debug.LogError("DanceRecorder: No landmark indices to record. Please check your rotation mappings or specify manual indices.");
             return;
         }
 
         recordedFrames.Clear();
         isRecording = true;
         recordingStartTime = Time.time;
+        recordedDuration = 0f;
         Debug.Log("DanceRecorder: Recording started.");
     }
 
     public int StopRecording()
     {
         if (!isRecording) return 0;
+        recordedDuration = Time.time - recordingStartTime;
         isRecording = false;
-        Debug.Log($"DanceRecorder: Recording stopped, total frames: {recordedFrames.Count}");
+        Debug.Log($"DanceRecorder: Recording stopped, total frames: {recordedFrames.Count}, duration: {recordedDuration:F2}s.");
         return recordedFrames.Count;
     }
 
-    public DanceClipData SaveToAsset(string path = "Assets/DanceClip.asset")
+    // 将clipCount作为参数传入，生成不同的文件名
+    public DanceClipData SaveToAsset()
     {
+        // 确保目标文件夹存在
+    #if UNITY_EDITOR
+        string folder = "Assets/Resources/DanceClips";
+        if (!System.IO.Directory.Exists(folder))
+            System.IO.Directory.CreateDirectory(folder);
+    #endif
+
+        // 生成唯一文件名（基于当前 clipCount）
+        string path = $"Assets/Resources/DanceClips/DanceClip_{clipCount:D3}.asset";
+
         DanceClipData clip = ScriptableObject.CreateInstance<DanceClipData>();
-        clip.Duration = CurrentRecordingTime;
+        clip.Duration = recordedDuration;
         clip.recordedIndices = recordIndices.ToArray();
         clip.frames = new List<FrameData>(recordedFrames);
 
-#if UNITY_EDITOR
+    #if UNITY_EDITOR
         UnityEditor.AssetDatabase.CreateAsset(clip, path);
         UnityEditor.AssetDatabase.SaveAssets();
         Debug.Log($"DanceRecorder: Dance clip saved to {path}");
-#endif
+    #endif
+
+        Debug.Log($"Total recorded frames: {recordedFrames.Count}, duration: {recordedDuration:F2}s, saved as {path}");
+
+        // 保存成功后递增 clipCount，为下次保存准备新编号
+        clipCount++;
+
         return clip;
     }
 }

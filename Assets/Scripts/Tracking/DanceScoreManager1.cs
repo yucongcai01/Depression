@@ -27,8 +27,8 @@ public class DanceScoreManager1 : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        if (playerTracker == null) playerTracker = FindObjectOfType<NewBodyTracker>();
-        if (referencePlayback == null) referencePlayback = FindObjectOfType<DancePlayback>();
+        if (playerTracker == null) playerTracker = FindAnyObjectByType<NewBodyTracker>();
+        if (referencePlayback == null) referencePlayback = FindAnyObjectByType<DancePlayback>();
         if (clip == null && referencePlayback != null) clip = referencePlayback.clip;
 
         // 确定要评分的索引
