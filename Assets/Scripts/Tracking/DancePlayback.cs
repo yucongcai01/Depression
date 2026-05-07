@@ -46,6 +46,7 @@ public class DancePlayback : MonoBehaviour
     public bool IsPlaying => isPlaying;
     public float PlaybackTime => playbackTime;
     public float Duration => clip != null ? clip.Duration : 0f;
+    public int[] RecordedIndices => clip != null ? clip.recordedIndices : new int[0];
 
     void Start()
     {
@@ -329,5 +330,10 @@ public class DancePlayback : MonoBehaviour
     public void Seek(float time)
     {
         playbackTime = Mathf.Clamp(time, 0f, Duration);
+    }
+
+    public List<NormalizedLandmark> GetCurrentLandmarks()
+    {
+        return constructedLandmarks;
     }
 }
