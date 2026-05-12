@@ -1978,7 +1978,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b89831758d7fd3743bc8cbbe736b1f56, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DancePlayback
-  clip: {fileID: 11400000, guid: a5be3f70aa018ad429a96e294dedc5c4, type: 2}
+  clip: {fileID: 11400000, guid: df432918341952f46b2240bf079a4751, type: 2}
   animator: {fileID: 1722374742}
   autoInitializeMappings: 1
   rotationMappings:
