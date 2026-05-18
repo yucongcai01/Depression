@@ -29,6 +29,7 @@ public class DancePlayback : MonoBehaviour
     [Header("Playback Settings")]
     public float speedMultiplier = 1f;
     public bool playOnStart = false;
+    public bool loopCurrentClip = true;
 
     [Header("Avatar Orientation")]
     public bool lockAvatarRotation = true;
@@ -76,6 +77,20 @@ public class DancePlayback : MonoBehaviour
         if (!isPlaying || clip == null) return;
 
         playbackTime += Time.deltaTime * speedMultiplier;
+        if (clip.Duration <= 0f)
+        {
+            playbackTime = 0f;
+            ApplyFrame(playbackTime);
+            return;
+        }
+
+        if (loopCurrentClip)
+        {
+            playbackTime = Mathf.Repeat(playbackTime, clip.Duration);
+            ApplyFrame(playbackTime);
+            return;
+        }
+
         if (playbackTime >= clip.Duration)
         {
             playbackTime = clip.Duration; // 停住，或循环
@@ -176,7 +191,7 @@ public class DancePlayback : MonoBehaviour
             childIsMidpoint: false);
 
         AddMidpointMapping(HumanBodyBones.Neck,
-            parentA: 0, parentB: 0, parentIsMidpoint: false,
+            parentA: 11, parentB: 12,
             childA: 7, childB: 8);
 
         AddMidpointMapping(HumanBodyBones.Head,
@@ -237,12 +252,9 @@ public class DancePlayback : MonoBehaviour
         foreach (var map in rotationMappings)
         {
             Transform bone = animator.GetBoneTransform(map.bone);
-            if (bone == null || bone.childCount == 0) continue;
+            if (bone == null || !TryGetInitialWorldDirection(map.bone, bone, out Vector3 worldDir)) continue;
 
-            Transform child = bone.GetChild(0);
             Transform boneParent = bone.parent;
-
-            Vector3 worldDir = (child.position - bone.position).normalized;
             Vector3 initLocalDirInParentSpace = (boneParent != null)
                 ? boneParent.InverseTransformDirection(worldDir)
                 : worldDir;
@@ -250,6 +262,25 @@ public class DancePlayback : MonoBehaviour
             boneInitLocalForward[map.bone] = initLocalDirInParentSpace;
             boneInitLocalRot[map.bone] = bone.localRotation;
         }
+    }
+
+    private bool TryGetInitialWorldDirection(HumanBodyBones boneType, Transform bone, out Vector3 worldDir)
+    {
+        if (boneType == HumanBodyBones.Head)
+        {
+            worldDir = transform.forward.sqrMagnitude > 0.0001f ? transform.forward : bone.forward;
+            return worldDir.sqrMagnitude > 0.0001f;
+        }
+
+        if (bone.childCount == 0)
+        {
+            worldDir = Vector3.zero;
+            return false;
+        }
+
+        Transform child = bone.GetChild(0);
+        worldDir = (child.position - bone.position).normalized;
+        return worldDir.sqrMagnitude > 0.0001f;
     }
 
     void ApplyBoneRotationImproved(RotationMapping mapping)

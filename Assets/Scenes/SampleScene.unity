@@ -1977,6 +1977,7 @@ MonoBehaviour:
   minSpeedMultiplier: 0.85
   maxSpeedMultiplier: 1.25
   speedSmoothing: 1.4
+  targetSpeedMultiplier: 1
   adjustedSpeedMultiplier: 1
   fuzzyOutput: 1
   emotionInputAvailable: 0
@@ -2726,7 +2727,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b89831758d7fd3743bc8cbbe736b1f56, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DancePlayback
-  clip: {fileID: 11400000, guid: df432918341952f46b2240bf079a4751, type: 2}
+  clip: {fileID: 11400000, guid: 40d076a3322389a4183a051491891924, type: 2}
   animator: {fileID: 1722374742}
   autoInitializeMappings: 1
   rotationMappings:

@@ -30,7 +30,7 @@ public class DancePlaybackEditor : Editor
             dp.rotationMappings.Add(CreateMidpointMapping(HumanBodyBones.Hips, 23, 24, 11, 12));
             dp.rotationMappings.Add(CreateMidpointMapping(HumanBodyBones.Spine, 23, 24, 11, 12));
             dp.rotationMappings.Add(CreateMidpointMapping(HumanBodyBones.Chest, 11, 12, 0, 0, true, false)); // 注意 childIsMidpoint = false
-            dp.rotationMappings.Add(CreateMidpointMapping(HumanBodyBones.Neck, 0, 0, 7, 8, false, true)); // parentIsMidpoint = false
+            dp.rotationMappings.Add(CreateMidpointMapping(HumanBodyBones.Neck, 11, 12, 7, 8));
             dp.rotationMappings.Add(CreateMidpointMapping(HumanBodyBones.Head, 7, 8, 0, 0, true, false)); // childIsMidpoint = false
 
             EditorUtility.SetDirty(dp);
