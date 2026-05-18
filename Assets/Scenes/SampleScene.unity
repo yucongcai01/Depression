@@ -2727,7 +2727,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b89831758d7fd3743bc8cbbe736b1f56, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DancePlayback
-  clip: {fileID: 11400000, guid: 40d076a3322389a4183a051491891924, type: 2}
+  clip: {fileID: 11400000, guid: fd187806e64597044a28724faa0cc0a5, type: 2}
   animator: {fileID: 1722374742}
   autoInitializeMappings: 1
   rotationMappings:
@@ -2863,6 +2863,7 @@ MonoBehaviour:
     axisOffset: {x: 0, y: 0, z: 0}
   speedMultiplier: 1
   playOnStart: 1
+  loopCurrentClip: 1
   lockAvatarRotation: 1
   avatarInitialRotation: {x: 0, y: 180, z: 0}
 --- !u!1 &1807798881
@@ -3467,6 +3468,7 @@ MonoBehaviour:
     axisOffset: {x: 0, y: 0, z: 0}
   speedMultiplier: 1
   playOnStart: 1
+  loopCurrentClip: 1
   lockAvatarRotation: 1
   avatarInitialRotation: {x: 0, y: 180, z: 0}
 --- !u!1 &1885797102
