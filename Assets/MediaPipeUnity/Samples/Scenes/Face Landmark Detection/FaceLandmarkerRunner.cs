@@ -14,16 +14,39 @@ namespace Mediapipe.Unity.Sample.FaceLandmarkDetection
   public class FaceLandmarkerRunner : VisionTaskApiRunner<FaceLandmarker>
   {
     [SerializeField] private FaceLandmarkerResultAnnotationController _faceLandmarkerResultAnnotationController;
+    [SerializeField] private bool showInputPreview = true;
+    [SerializeField] private bool drawAnnotations = true;
 
     private Experimental.TextureFramePool _textureFramePool;
+    private readonly object _latestResultLock = new object();
 
     public readonly FaceLandmarkDetectionConfig config = new FaceLandmarkDetectionConfig();
+    public bool HasLatestResult { get; private set; }
+
+    private FaceLandmarkerResult _latestResult;
+
+    public bool TryGetLatestResult(out FaceLandmarkerResult result)
+    {
+      lock (_latestResultLock)
+      {
+        if (!HasLatestResult)
+        {
+          result = default;
+          return false;
+        }
+
+        result = default;
+        _latestResult.CloneTo(ref result);
+        return true;
+      }
+    }
 
     public override void Stop()
     {
       base.Stop();
       _textureFramePool?.Dispose();
       _textureFramePool = null;
+      SetLatestResult(default, false);
     }
 
     protected override IEnumerator Run()
@@ -56,10 +79,14 @@ namespace Mediapipe.Unity.Sample.FaceLandmarkDetection
       // TODO: When using GpuBuffer, MediaPipe assumes that the input format is BGRA, so maybe the following code needs to be fixed.
       _textureFramePool = new Experimental.TextureFramePool(imageSource.textureWidth, imageSource.textureHeight, TextureFormat.RGBA32, 10);
 
-      // NOTE: The screen will be resized later, keeping the aspect ratio.
-      screen.Initialize(imageSource);
+      if (showInputPreview && screen != null)
+      {
+        // NOTE: The screen will be resized later, keeping the aspect ratio.
+        screen.Initialize(imageSource);
+      }
 
-      SetupAnnotationController(_faceLandmarkerResultAnnotationController, imageSource);
+      if (drawAnnotations && _faceLandmarkerResultAnnotationController != null)
+        SetupAnnotationController(_faceLandmarkerResultAnnotationController, imageSource);
 
       var transformationOptions = imageSource.GetTransformationOptions();
       var flipHorizontally = transformationOptions.flipHorizontally;
@@ -129,21 +156,25 @@ namespace Mediapipe.Unity.Sample.FaceLandmarkDetection
           case Tasks.Vision.Core.RunningMode.IMAGE:
             if (taskApi.TryDetect(image, imageProcessingOptions, ref result))
             {
-              _faceLandmarkerResultAnnotationController.DrawNow(result);
+              SetLatestResult(result, true);
+              DrawNow(result);
             }
             else
             {
-              _faceLandmarkerResultAnnotationController.DrawNow(default);
+              SetLatestResult(default, false);
+              DrawNow(default);
             }
             break;
           case Tasks.Vision.Core.RunningMode.VIDEO:
             if (taskApi.TryDetectForVideo(image, GetCurrentTimestampMillisec(), imageProcessingOptions, ref result))
             {
-              _faceLandmarkerResultAnnotationController.DrawNow(result);
+              SetLatestResult(result, true);
+              DrawNow(result);
             }
             else
             {
-              _faceLandmarkerResultAnnotationController.DrawNow(default);
+              SetLatestResult(default, false);
+              DrawNow(default);
             }
             break;
           case Tasks.Vision.Core.RunningMode.LIVE_STREAM:
@@ -155,7 +186,38 @@ namespace Mediapipe.Unity.Sample.FaceLandmarkDetection
 
     private void OnFaceLandmarkDetectionOutput(FaceLandmarkerResult result, Image image, long timestamp)
     {
-      _faceLandmarkerResultAnnotationController.DrawLater(result);
+      bool hasFace = result.faceLandmarks != null && result.faceLandmarks.Count > 0;
+      SetLatestResult(result, hasFace);
+      DrawLater(result);
+    }
+
+    private void DrawNow(FaceLandmarkerResult result)
+    {
+      if (drawAnnotations && _faceLandmarkerResultAnnotationController != null)
+        _faceLandmarkerResultAnnotationController.DrawNow(result);
+    }
+
+    private void DrawLater(FaceLandmarkerResult result)
+    {
+      if (drawAnnotations && _faceLandmarkerResultAnnotationController != null)
+        _faceLandmarkerResultAnnotationController.DrawLater(result);
+    }
+
+    private void SetLatestResult(FaceLandmarkerResult result, bool hasResult)
+    {
+      lock (_latestResultLock)
+      {
+        if (hasResult)
+        {
+          result.CloneTo(ref _latestResult);
+          HasLatestResult = true;
+        }
+        else
+        {
+          _latestResult = default;
+          HasLatestResult = false;
+        }
+      }
     }
   }
 }
