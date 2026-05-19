@@ -6,7 +6,8 @@ public enum AdaptiveDifficultyMode
 {
     PhysicalOnly,
     EmotionOnly,
-    NoAdaptive
+    NoAdaptive,
+    PhysicalAndEmotion
 }
 
 public class AdaptiveDifficultyController : MonoBehaviour
@@ -22,13 +23,16 @@ public class AdaptiveDifficultyController : MonoBehaviour
     public TMP_Text debugText;
 
     [Header("Adaptive Mode")]
-    public AdaptiveDifficultyMode adaptiveMode = AdaptiveDifficultyMode.PhysicalOnly;
+    public AdaptiveDifficultyMode adaptiveMode = AdaptiveDifficultyMode.PhysicalAndEmotion;
 
     [Header("Fuzzy Systems")]
     public MamdaniFuzzySystem fuzzySystem;
     public MamdaniFuzzySystem emotionFuzzySystem;
 
     [Header("Difficulty Settings")]
+    [Min(0.5f)] public float difficultyUpdateInterval = 5f;
+    public bool evaluateImmediatelyWhenPlaybackStarts = false;
+    [Range(0f, 1f)] public float emotionWeight = 0.35f;
     public float accuracyInput = 0f;
     public float accuracyChangeInput = 0f;
     [Range(-1f, 1f)] public float valenceInput = 0f;
@@ -49,9 +53,18 @@ public class AdaptiveDifficultyController : MonoBehaviour
     public float targetSpeedMultiplier = 1f;
     public float adjustedSpeedMultiplier = 1f;
     public float fuzzyOutput = 1f;
+    public float physicalSpeedOutput = 1f;
+    public float emotionSpeedOutput = 1f;
+    public bool physicalInputAvailable;
     public bool emotionInputAvailable;
+    public float lastDifficultyUpdatedAt = -1f;
 
     private float previousAccuracy = 0f;
+    private bool hasPreviousAccuracyWindow;
+    private float accuracySampleSum;
+    private float accuracySampleTime;
+    private float nextDifficultyUpdateTime;
+    private bool wasPlaybackPlaying;
     private string statusMessage = string.Empty;
 
     private void Awake()
@@ -76,7 +89,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
 
     private void Update()
     {
-        ResolveReferences(includeEmotionProvider: adaptiveMode == AdaptiveDifficultyMode.EmotionOnly);
+        ResolveReferences(includeEmotionProvider: UsesEmotionInput());
 
         if (dancePlayback == null)
         {
@@ -85,31 +98,78 @@ public class AdaptiveDifficultyController : MonoBehaviour
             return;
         }
 
+        if (adaptiveMode == AdaptiveDifficultyMode.NoAdaptive)
+        {
+            ApplyBaseSpeed(immediate: !dancePlayback.IsPlaying);
+            statusMessage = "Adaptive disabled";
+            UpdateDebugText();
+            return;
+        }
+
         if (!dancePlayback.IsPlaying)
         {
             ApplyBaseSpeed(immediate: true);
-            previousAccuracy = 0f;
+            wasPlaybackPlaying = false;
+            ResetPerformanceWindow();
             statusMessage = "Playback idle";
             UpdateDebugText();
             return;
         }
 
+        if (!wasPlaybackPlaying)
+        {
+            wasPlaybackPlaying = true;
+            ResetPerformanceWindow();
+            nextDifficultyUpdateTime = Time.time + (evaluateImmediatelyWhenPlaybackStarts ? 0f : difficultyUpdateInterval);
+            targetSpeedMultiplier = ClampSpeed(baseSpeedMultiplier);
+        }
+
+        SamplePerformanceWindow();
+
+        if (Time.time >= nextDifficultyUpdateTime)
+        {
+            UpdateDifficultyTarget();
+            nextDifficultyUpdateTime = Time.time + Mathf.Max(0.5f, difficultyUpdateInterval);
+        }
+
+        MovePlaybackSpeedTowardTarget();
+        UpdateDebugText();
+    }
+
+    public void ForceDifficultyUpdate()
+    {
+        UpdateDifficultyTarget();
+        nextDifficultyUpdateTime = Time.time + Mathf.Max(0.5f, difficultyUpdateInterval);
+    }
+
+    public void ResetAdaptiveStateForNewAction()
+    {
+        ResetPerformanceWindow();
+        nextDifficultyUpdateTime = Time.time + Mathf.Max(0.5f, difficultyUpdateInterval);
+    }
+
+    private void UpdateDifficultyTarget()
+    {
+        float nextTarget;
+
         switch (adaptiveMode)
         {
             case AdaptiveDifficultyMode.EmotionOnly:
-                ApplyAdaptiveSpeed(EvaluateEmotionTargetSpeed());
+                nextTarget = EvaluateEmotionTargetSpeed();
                 break;
-            case AdaptiveDifficultyMode.NoAdaptive:
-                ApplyBaseSpeed(immediate: true);
-                statusMessage = "Adaptive disabled";
+            case AdaptiveDifficultyMode.PhysicalAndEmotion:
+                nextTarget = EvaluateCombinedTargetSpeed();
                 break;
             case AdaptiveDifficultyMode.PhysicalOnly:
             default:
-                ApplyAdaptiveSpeed(EvaluatePhysicalTargetSpeed());
+                nextTarget = EvaluatePhysicalTargetSpeed();
                 break;
         }
 
-        UpdateDebugText();
+        targetSpeedMultiplier = ClampSpeed(nextTarget);
+        fuzzyOutput = targetSpeedMultiplier;
+        lastDifficultyUpdatedAt = Time.time;
+        ResetPerformanceWindow(keepPreviousAccuracy: true);
     }
 
     public void SetEmotionOnlyMode()
@@ -127,14 +187,25 @@ public class AdaptiveDifficultyController : MonoBehaviour
         SetAdaptiveMode(AdaptiveDifficultyMode.NoAdaptive);
     }
 
+    public void SetPhysicalAndEmotionMode()
+    {
+        SetAdaptiveMode(AdaptiveDifficultyMode.PhysicalAndEmotion);
+    }
+
     public void SetAdaptiveMode(AdaptiveDifficultyMode mode)
     {
         adaptiveMode = mode;
-        ResolveReferences(includeEmotionProvider: adaptiveMode == AdaptiveDifficultyMode.EmotionOnly);
+        ResolveReferences(includeEmotionProvider: UsesEmotionInput());
         ResetAdaptiveState();
 
         if (adaptiveMode == AdaptiveDifficultyMode.NoAdaptive)
             ApplyBaseSpeed(immediate: true);
+    }
+
+    private bool UsesEmotionInput()
+    {
+        return adaptiveMode == AdaptiveDifficultyMode.EmotionOnly ||
+               adaptiveMode == AdaptiveDifficultyMode.PhysicalAndEmotion;
     }
 
     private void ResolveReferences(bool includeEmotionProvider = false)
@@ -151,24 +222,27 @@ public class AdaptiveDifficultyController : MonoBehaviour
 
     private float EvaluatePhysicalTargetSpeed()
     {
-        emotionInputAvailable = false;
-
         if (accuracyChecker == null)
         {
+            physicalInputAvailable = false;
             statusMessage = "Missing AccuracyChecker";
-            fuzzyOutput = baseSpeedMultiplier;
+            physicalSpeedOutput = baseSpeedMultiplier;
             return baseSpeedMultiplier;
         }
 
         if (fuzzySystem == null)
             fuzzySystem = CreatePhysicalFuzzySystem();
 
-        float currentAccuracy = Mathf.Clamp01(accuracyChecker.currentAccuracy);
-        float accChange = Mathf.Clamp(currentAccuracy - previousAccuracy, -0.08f, 0.08f);
-        previousAccuracy = currentAccuracy;
+        float currentAccuracy = GetWindowAccuracy();
+        float accChange = hasPreviousAccuracyWindow
+            ? Mathf.Clamp(currentAccuracy - previousAccuracy, -0.08f, 0.08f)
+            : 0f;
 
+        physicalInputAvailable = true;
         accuracyInput = currentAccuracy;
         accuracyChangeInput = accChange;
+        previousAccuracy = currentAccuracy;
+        hasPreviousAccuracyWindow = true;
 
         var inputs = new Dictionary<string, float>
         {
@@ -176,9 +250,9 @@ public class AdaptiveDifficultyController : MonoBehaviour
             { "AccuracyChange", accuracyChangeInput }
         };
 
-        fuzzyOutput = fuzzySystem.Evaluate(inputs);
+        physicalSpeedOutput = fuzzySystem.Evaluate(inputs);
         statusMessage = "Physical adaptive";
-        return fuzzyOutput;
+        return physicalSpeedOutput;
     }
 
     private float EvaluateEmotionTargetSpeed()
@@ -187,7 +261,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
         {
             emotionInputAvailable = false;
             statusMessage = "Missing FaceEmotionProvider";
-            fuzzyOutput = baseSpeedMultiplier;
+            emotionSpeedOutput = baseSpeedMultiplier;
             return baseSpeedMultiplier;
         }
 
@@ -198,7 +272,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
         if (!emotionInputAvailable)
         {
             statusMessage = "Waiting for emotion input";
-            fuzzyOutput = baseSpeedMultiplier;
+            emotionSpeedOutput = baseSpeedMultiplier;
             return baseSpeedMultiplier;
         }
 
@@ -211,15 +285,37 @@ public class AdaptiveDifficultyController : MonoBehaviour
             { "Arousal", arousalInput }
         };
 
-        fuzzyOutput = emotionFuzzySystem.Evaluate(inputs);
+        emotionSpeedOutput = emotionFuzzySystem.Evaluate(inputs);
         statusMessage = "Emotion adaptive";
-        return fuzzyOutput;
+        return emotionSpeedOutput;
     }
 
-    private void ApplyAdaptiveSpeed(float targetSpeedMultiplier)
+    private float EvaluateCombinedTargetSpeed()
+    {
+        float physicalTarget = EvaluatePhysicalTargetSpeed();
+        float emotionTarget = EvaluateEmotionTargetSpeed();
+
+        if (physicalInputAvailable && emotionInputAvailable)
+        {
+            statusMessage = "Physical + emotion adaptive";
+            return Mathf.Lerp(physicalTarget, emotionTarget, emotionWeight);
+        }
+
+        if (emotionInputAvailable)
+        {
+            statusMessage = "Emotion adaptive (missing physical)";
+            return emotionTarget;
+        }
+
+        statusMessage = faceEmotionProvider == null
+            ? "Physical adaptive (missing emotion)"
+            : "Physical adaptive (waiting for emotion)";
+        return physicalTarget;
+    }
+
+    private void MovePlaybackSpeedTowardTarget()
     {
         float target = ClampSpeed(targetSpeedMultiplier);
-        this.targetSpeedMultiplier = target;
         float alpha = 1f - Mathf.Exp(-Mathf.Max(0.01f, speedSmoothing) * Time.deltaTime);
         adjustedSpeedMultiplier = Mathf.Lerp(adjustedSpeedMultiplier, target, alpha);
         dancePlayback.speedMultiplier = ClampSpeed(adjustedSpeedMultiplier);
@@ -238,7 +334,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
         }
         else
         {
-            ApplyAdaptiveSpeed(target);
+            MovePlaybackSpeedTowardTarget();
         }
 
         fuzzyOutput = target;
@@ -268,6 +364,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
 
         calibrationReadinessBaseline = Mathf.Clamp01(CalibrationReadinessStore.Current.initialDifficultyBaseline);
         baseSpeedMultiplier = MapReadinessToInitialSpeed(calibrationReadinessBaseline);
+        NormalizeSpeedSettings();
         calibrationBaselineApplied = true;
     }
 
@@ -295,9 +392,46 @@ public class AdaptiveDifficultyController : MonoBehaviour
             ? ClampSpeed(dancePlayback.speedMultiplier)
             : ClampSpeed(baseSpeedMultiplier);
 
+        targetSpeedMultiplier = ClampSpeed(baseSpeedMultiplier);
         previousAccuracy = accuracyChecker != null ? Mathf.Clamp01(accuracyChecker.currentAccuracy) : 0f;
         fuzzyOutput = adjustedSpeedMultiplier;
+        physicalSpeedOutput = adjustedSpeedMultiplier;
+        emotionSpeedOutput = adjustedSpeedMultiplier;
+        physicalInputAvailable = false;
         emotionInputAvailable = false;
+        wasPlaybackPlaying = false;
+        lastDifficultyUpdatedAt = -1f;
+        ResetPerformanceWindow();
+    }
+
+    private void SamplePerformanceWindow()
+    {
+        if (accuracyChecker == null)
+            return;
+
+        float deltaTime = Mathf.Max(0f, Time.deltaTime);
+        accuracySampleSum += Mathf.Clamp01(accuracyChecker.currentAccuracy) * deltaTime;
+        accuracySampleTime += deltaTime;
+    }
+
+    private float GetWindowAccuracy()
+    {
+        if (accuracySampleTime > 0f)
+            return Mathf.Clamp01(accuracySampleSum / accuracySampleTime);
+
+        return accuracyChecker != null ? Mathf.Clamp01(accuracyChecker.currentAccuracy) : 0.5f;
+    }
+
+    private void ResetPerformanceWindow(bool keepPreviousAccuracy = false)
+    {
+        accuracySampleSum = 0f;
+        accuracySampleTime = 0f;
+
+        if (!keepPreviousAccuracy)
+        {
+            hasPreviousAccuracyWindow = false;
+            previousAccuracy = accuracyChecker != null ? Mathf.Clamp01(accuracyChecker.currentAccuracy) : 0f;
+        }
     }
 
     private void UpdateDebugText()
@@ -312,10 +446,15 @@ public class AdaptiveDifficultyController : MonoBehaviour
             $"Accuracy Change: {accuracyChangeInput:F2}\n" +
             $"Valence: {valenceInput:F2}\n" +
             $"Arousal: {arousalInput:F2}\n" +
+            $"Physical Available: {physicalInputAvailable}\n" +
             $"Emotion Available: {emotionInputAvailable}\n" +
             $"Calibration Baseline: {(calibrationBaselineApplied ? calibrationReadinessBaseline.ToString("F2") : "None")}\n" +
-            $"Fuzzy Output: {fuzzyOutput:F2}\n" +
+            $"Physical Output: {physicalSpeedOutput:F2}\n" +
+            $"Emotion Output: {emotionSpeedOutput:F2}\n" +
+            $"Combined Output: {fuzzyOutput:F2}\n" +
             $"Target Speed: {targetSpeedMultiplier:F2}\n" +
+            $"Update Interval: {difficultyUpdateInterval:F1}s\n" +
+            $"Last Update: {(lastDifficultyUpdatedAt >= 0f ? lastDifficultyUpdatedAt.ToString("F1") : "None")}\n" +
             $"Playback Speed: {(dancePlayback != null ? dancePlayback.speedMultiplier : 0f):F2}";
     }
 
