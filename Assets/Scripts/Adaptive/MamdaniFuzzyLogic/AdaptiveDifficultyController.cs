@@ -40,6 +40,11 @@ public class AdaptiveDifficultyController : MonoBehaviour
     public float maxSpeedMultiplier = RecommendedMaxSpeedMultiplier;
     public float speedSmoothing = RecommendedSpeedSmoothing;
 
+    [Header("Calibration Initial Difficulty")]
+    public bool useCalibrationInitialDifficulty = true;
+    [Range(0f, 1f)] public float calibrationReadinessBaseline = 0.5f;
+    public bool calibrationBaselineApplied;
+
     [Header("Output (Read Only)")]
     public float targetSpeedMultiplier = 1f;
     public float adjustedSpeedMultiplier = 1f;
@@ -58,6 +63,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
     private void Start()
     {
         NormalizeSpeedSettings();
+        ApplyCalibrationInitialDifficulty();
         fuzzySystem = CreatePhysicalFuzzySystem();
         emotionFuzzySystem = CreateEmotionFuzzySystem();
         ResetAdaptiveState();
@@ -253,6 +259,29 @@ public class AdaptiveDifficultyController : MonoBehaviour
             speedSmoothing = RecommendedSpeedSmoothing;
     }
 
+    private void ApplyCalibrationInitialDifficulty()
+    {
+        calibrationBaselineApplied = false;
+
+        if (!useCalibrationInitialDifficulty || CalibrationReadinessStore.Current == null)
+            return;
+
+        calibrationReadinessBaseline = Mathf.Clamp01(CalibrationReadinessStore.Current.initialDifficultyBaseline);
+        baseSpeedMultiplier = MapReadinessToInitialSpeed(calibrationReadinessBaseline);
+        calibrationBaselineApplied = true;
+    }
+
+    private float MapReadinessToInitialSpeed(float readiness)
+    {
+        float min = Mathf.Min(minSpeedMultiplier, maxSpeedMultiplier);
+        float max = Mathf.Max(minSpeedMultiplier, maxSpeedMultiplier);
+        float neutral = Mathf.Clamp(baseSpeedMultiplier, min, max);
+
+        return readiness < 0.5f
+            ? Mathf.Lerp(min, neutral, readiness / 0.5f)
+            : Mathf.Lerp(neutral, max, (readiness - 0.5f) / 0.5f);
+    }
+
     private float ClampSpeed(float value)
     {
         float min = Mathf.Min(minSpeedMultiplier, maxSpeedMultiplier);
@@ -284,6 +313,7 @@ public class AdaptiveDifficultyController : MonoBehaviour
             $"Valence: {valenceInput:F2}\n" +
             $"Arousal: {arousalInput:F2}\n" +
             $"Emotion Available: {emotionInputAvailable}\n" +
+            $"Calibration Baseline: {(calibrationBaselineApplied ? calibrationReadinessBaseline.ToString("F2") : "None")}\n" +
             $"Fuzzy Output: {fuzzyOutput:F2}\n" +
             $"Target Speed: {targetSpeedMultiplier:F2}\n" +
             $"Playback Speed: {(dancePlayback != null ? dancePlayback.speedMultiplier : 0f):F2}";

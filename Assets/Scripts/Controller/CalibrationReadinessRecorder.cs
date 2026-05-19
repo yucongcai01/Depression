@@ -32,6 +32,15 @@ public class CalibrationReadinessRecorder : MonoBehaviour
             fatigue = data.fatigue,
             readinessScore = CalculateAffectiveReadinessScore(data)
         };
+
+        currentRecord.skills = new CalibrationSkillsReadinessRecord
+        {
+            completed = true,
+            completedAtUtc = DateTime.UtcNow.ToString("O"),
+            exergameExperience = data.exergameExperience,
+            danceGameExperience = data.danceGameExperience,
+            readinessScore = CalculateSkillsReadinessScore(data)
+        };
     }
 
     public void RecordPhysicalReadiness(bool trackingConfirmed)
@@ -39,20 +48,6 @@ public class CalibrationReadinessRecorder : MonoBehaviour
         currentRecord.physical.completed = true;
         currentRecord.physical.completedAtUtc = DateTime.UtcNow.ToString("O");
         currentRecord.physical.trackingConfirmed = trackingConfirmed;
-        currentRecord.physical.readinessScore = CalculatePhysicalReadinessScore(currentRecord.physical);
-    }
-
-    public void SetHeartRate(float heartRateBpm)
-    {
-        currentRecord.physical.hasHeartRate = true;
-        currentRecord.physical.heartRateBpm = Mathf.Max(0f, heartRateBpm);
-        currentRecord.physical.readinessScore = CalculatePhysicalReadinessScore(currentRecord.physical);
-    }
-
-    public void SetHrvRmssd(float hrvRmssdMs)
-    {
-        currentRecord.physical.hasHrvRmssd = true;
-        currentRecord.physical.hrvRmssdMs = Mathf.Max(0f, hrvRmssdMs);
         currentRecord.physical.readinessScore = CalculatePhysicalReadinessScore(currentRecord.physical);
     }
 
@@ -87,10 +82,10 @@ public class CalibrationReadinessRecorder : MonoBehaviour
     public float EstimateInitialDifficultyBaseline()
     {
         float affective = currentRecord.affective.completed ? currentRecord.affective.readinessScore : 0.5f;
-        float physical = currentRecord.physical.completed ? currentRecord.physical.readinessScore : 0.5f;
+        float skills = currentRecord.skills.completed ? currentRecord.skills.readinessScore : 0.5f;
         float motorCognitive = currentRecord.motorCognitive.completed ? currentRecord.motorCognitive.readinessScore : 0.5f;
 
-        return Mathf.Clamp01(0.4f * affective + 0.35f * physical + 0.25f * motorCognitive);
+        return Mathf.Clamp01(0.4f * affective + 0.3f * skills + 0.3f * motorCognitive);
     }
 
     private float CalculateAffectiveReadinessScore(CalibrationAffectiveReadinessData data)
@@ -108,23 +103,16 @@ public class CalibrationReadinessRecorder : MonoBehaviour
         return Mathf.Clamp01(score);
     }
 
+    private float CalculateSkillsReadinessScore(CalibrationAffectiveReadinessData data)
+    {
+        float exergameReadiness = NormalizeLikert(data.exergameExperience);
+        float danceGameReadiness = NormalizeLikert(data.danceGameExperience);
+        return Mathf.Clamp01(0.5f * exergameReadiness + 0.5f * danceGameReadiness);
+    }
+
     private float CalculatePhysicalReadinessScore(CalibrationPhysicalReadinessRecord physical)
     {
-        float score = physical.trackingConfirmed ? 0.7f : 0.25f;
-
-        if (physical.hasHeartRate)
-        {
-            float heartRateScore = Mathf.InverseLerp(120f, 60f, physical.heartRateBpm);
-            score = Mathf.Lerp(score, heartRateScore, 0.2f);
-        }
-
-        if (physical.hasHrvRmssd)
-        {
-            float hrvScore = Mathf.InverseLerp(15f, 80f, physical.hrvRmssdMs);
-            score = Mathf.Lerp(score, hrvScore, 0.2f);
-        }
-
-        return Mathf.Clamp01(score);
+        return physical.trackingConfirmed ? 0.7f : 0.25f;
     }
 
     private float CalculateMotorCognitiveReadinessScore(CalibrationMotorCognitiveReadinessRecord motorCognitive)
@@ -155,6 +143,7 @@ public class CalibrationReadinessRecord
     public string sessionStartedAtUtc;
     public string sessionCompletedAtUtc;
     public CalibrationAffectiveReadinessRecord affective = new CalibrationAffectiveReadinessRecord();
+    public CalibrationSkillsReadinessRecord skills = new CalibrationSkillsReadinessRecord();
     public CalibrationPhysicalReadinessRecord physical = new CalibrationPhysicalReadinessRecord();
     public CalibrationMotorCognitiveReadinessRecord motorCognitive = new CalibrationMotorCognitiveReadinessRecord();
     public float initialDifficultyBaseline;
@@ -167,6 +156,8 @@ public struct CalibrationAffectiveReadinessData
     public int interest;
     public int tension;
     public int fatigue;
+    public int exergameExperience;
+    public int danceGameExperience;
 }
 
 [Serializable]
@@ -182,15 +173,21 @@ public class CalibrationAffectiveReadinessRecord
 }
 
 [Serializable]
+public class CalibrationSkillsReadinessRecord
+{
+    public bool completed;
+    public string completedAtUtc;
+    public int exergameExperience;
+    public int danceGameExperience;
+    [Range(0f, 1f)] public float readinessScore;
+}
+
+[Serializable]
 public class CalibrationPhysicalReadinessRecord
 {
     public bool completed;
     public string completedAtUtc;
     public bool trackingConfirmed;
-    public bool hasHeartRate;
-    public float heartRateBpm;
-    public bool hasHrvRmssd;
-    public float hrvRmssdMs;
     [Range(0f, 1f)] public float readinessScore;
 }
 

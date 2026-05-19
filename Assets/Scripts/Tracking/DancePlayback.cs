@@ -43,6 +43,7 @@ public class DancePlayback : MonoBehaviour
     private Dictionary<HumanBodyBones, Quaternion> boneInitLocalRot = new Dictionary<HumanBodyBones, Quaternion>();
 
     private List<NormalizedLandmark> constructedLandmarks = new List<NormalizedLandmark>(33);
+    private bool initialized;
 
     public bool IsPlaying => isPlaying;
     public float PlaybackTime => playbackTime;
@@ -51,10 +52,7 @@ public class DancePlayback : MonoBehaviour
 
     void Start()
     {
-        if (animator == null) animator = GetComponent<Animator>();
-        ApplyAvatarOrientation();
-        InitializeBoneMaps();
-        RecordInitialBoneDirections();
+        InitializePlayback();
 
         if (clip == null)
         {
@@ -66,10 +64,20 @@ public class DancePlayback : MonoBehaviour
             Debug.Log($"DancePlayback: Loaded clip with duration {clip.Duration:F2}s and {clip.frames.Count} frames.");
         }
 
-        for (int i = 0; i < 33; i++)
-            constructedLandmarks.Add(new NormalizedLandmark());
-
         if (playOnStart) Play();
+    }
+
+    private void InitializePlayback()
+    {
+        if (initialized)
+            return;
+
+        if (animator == null) animator = GetComponent<Animator>();
+        ApplyAvatarOrientation();
+        InitializeBoneMaps();
+        RecordInitialBoneDirections();
+        EnsureConstructedLandmarks();
+        initialized = true;
     }
 
     void Update()
@@ -110,6 +118,7 @@ public class DancePlayback : MonoBehaviour
         if (frame == null) return;
 
         ApplyAvatarOrientation();
+        EnsureConstructedLandmarks();
 
         // 将录制的数据注入到完整的 landmark 列表中
         for (int i = 0; i < 33; i++)
@@ -150,6 +159,12 @@ public class DancePlayback : MonoBehaviour
     }
 
     // ---------- 骨骼驱动逻辑（与 NewBodyTracker 相同） ----------
+    private void EnsureConstructedLandmarks()
+    {
+        while (constructedLandmarks.Count < 33)
+            constructedLandmarks.Add(new NormalizedLandmark());
+    }
+
     void InitializeBoneMaps()
     {
         boneIndexMap.Clear();
@@ -342,6 +357,7 @@ public class DancePlayback : MonoBehaviour
     // ---------- 外部控制方法 ----------
     public void Play()
     {
+        InitializePlayback();
         Debug.Log("DancePlayback: Play called.");
         isPlaying = true;
         playbackTime = 0f;
